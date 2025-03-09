@@ -29,17 +29,21 @@ user_scores = {}
 
 # Klaviatura yaratish
 def get_keyboard(options):
-    keyboard = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
-    for option in options:
-        keyboard.add(KeyboardButton(option))
-    return keyboard
+    return ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True).add(*[KeyboardButton(option) for option in options])
 
 # Start komandasi
 @dp.message_handler(commands=['start'])
 async def start(message: types.Message):
     user_scores[message.chat.id] = {"score": 0, "question_index": 0}
-    await message.answer("Assalomu alaykum! Diabet xavfini aniqlash testiga xush kelibsiz! 😊\n\nKeling, savollarga javob bering.", 
-                         reply_markup=get_keyboard(questions[0][1]))
+    await ask_question(message)
+
+# Savolni foydalanuvchiga yuborish
+async def ask_question(message: types.Message):
+    user_id = message.chat.id
+    user_data = user_scores[user_id]
+    
+    current_question = questions[user_data["question_index"]]
+    await message.answer(current_question[0], reply_markup=get_keyboard(current_question[1]))
 
 # Foydalanuvchi javoblarini qayta ishlash
 @dp.message_handler(lambda message: message.chat.id in user_scores)
@@ -56,21 +60,23 @@ async def handle_answer(message: types.Message):
     # Keyingi savol yoki natija chiqarish
     user_data["question_index"] += 1
     if user_data["question_index"] < len(questions):
-        next_question = questions[user_data["question_index"]]
-        await message.answer(next_question[0], reply_markup=get_keyboard(next_question[1]))
+        await ask_question(message)
     else:
         # Natijani hisoblash
         total_score = user_data["score"]
-        if total_score <= 6:
-            risk_level = "✅ Diabet xavfi past. Sog‘lom turmush tarzini davom ettiring!"
-        elif total_score <= 11:
-            risk_level = "⚠️ Diabet xavfi bor. Profilaktika choralarini ko‘rish tavsiya etiladi."
-        else:
-            risk_level = "🚨 Diabet xavfi yuqori! Tez orada shifokorga murojaat qiling."
-
+        risk_level = determine_risk_level(total_score)
         await message.answer(f"Test yakunlandi!\n\nSizning umumiy ballingiz: {total_score}\n\n{risk_level}")
         del user_scores[user_id]  # Testni tugatgandan keyin ma'lumotni o‘chirish
 
+# Diabet xavfini aniqlash
+def determine_risk_level(total_score):
+    if total_score <= 6:
+        return "✅ Diabet xavfi past. Sog‘lom turmush tarzini davom ettiring!"
+    elif total_score <= 11:
+        return "⚠️ Diabet xavfi bor. Profilaktika choralarini ko‘rish tavsiya etiladi."
+    else:
+        return "🚨 Diabet xavfi yuqori! Tez orada shifokorga murojaat qiling."
+
 # Botni ishga tushirish
-if name == "main":
+if __name__ == "__main__":
     executor.start_polling(dp, skip_updates=True)
